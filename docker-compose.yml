@@ -1,0 +1,34 @@
+# Local stack for the Web3 Wallet API.
+#
+# Bring it up with:  docker compose up --build
+# Then open Swagger:  http://localhost:8080/swagger/index.html
+services:
+  wallet-api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      APP_ENV: development
+      PORT: "8080"
+      LOG_LEVEL: info
+      CHAIN_ID: "11155111" # Sepolia
+      ETH_RPC_URL: ${ETH_RPC_URL:-https://ethereum-sepolia-rpc.publicnode.com}
+      # Override these in a real deployment (see .env.example).
+      JWT_SECRET: ${JWT_SECRET:-dev-insecure-jwt-secret-change-me}
+      KEYSTORE_PASSPHRASE: ${KEYSTORE_PASSPHRASE:-dev-insecure-passphrase-change-me}
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:-demo-client}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET:-dev-insecure-client-secret-change-me}
+    volumes:
+      # Persist the encrypted keystore across restarts.
+      - wallet-keystore:/app/data/keystore
+    healthcheck:
+      # distroless has no shell/curl, so probe via the Go binary's own check.
+      test: ["CMD", "/app/server", "-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  wallet-keystore:

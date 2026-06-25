@@ -1,0 +1,286 @@
+basePath: /api/v1
+definitions:
+  github_com_ameerhamza_web3-wallet-api_internal_auth.Token:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      role:
+        type: string
+      token_type:
+        type: string
+    type: object
+  github_com_ameerhamza_web3-wallet-api_internal_transaction.Receipt:
+    properties:
+      from:
+        type: string
+      gas_limit:
+        type: integer
+      gas_price_wei:
+        type: string
+      nonce:
+        type: integer
+      to:
+        type: string
+      tx_hash:
+        type: string
+      value_wei:
+        type: string
+    type: object
+  github_com_ameerhamza_web3-wallet-api_internal_wallet.Wallet:
+    properties:
+      address:
+        type: string
+      created_at:
+        type: string
+    type: object
+  internal_api_handlers.balanceResponse:
+    properties:
+      address:
+        example: 0x71C7656EC7ab88b098defB751B7401B5f6d8976F
+        type: string
+      balance_eth:
+        example: "1.000000000000000000"
+        type: string
+      balance_wei:
+        example: "1000000000000000000"
+        type: string
+    type: object
+  internal_api_handlers.errorResponse:
+    properties:
+      error:
+        example: invalid address
+        type: string
+    type: object
+  internal_api_handlers.healthResponse:
+    properties:
+      rpc_online:
+        example: true
+        type: boolean
+      status:
+        example: ok
+        type: string
+    type: object
+  internal_api_handlers.sendRequest:
+    properties:
+      from:
+        example: 0x71C7656EC7ab88b098defB751B7401B5f6d8976F
+        type: string
+      gas_limit:
+        example: 21000
+        type: integer
+      to:
+        example: 0x71C7656EC7ab88b098defB751B7401B5f6d8976F
+        type: string
+      value_wei:
+        example: "1000000000000000"
+        type: string
+    required:
+    - from
+    - to
+    - value_wei
+    type: object
+  internal_api_handlers.tokenRequest:
+    properties:
+      client_id:
+        example: demo-client
+        type: string
+      client_secret:
+        example: dev-insecure-client-secret-change-me
+        type: string
+    required:
+    - client_id
+    - client_secret
+    type: object
+info:
+  contact: {}
+  description: |-
+    A secure, microservice-style Ethereum wallet API in Go: wallet creation, transaction signing, and balance checking on the Sepolia testnet.
+    Private keys are stored encrypted (Web3 Secret Storage). Endpoints are protected by JWT bearer tokens (OAuth2 client-credentials) with role-based access control.
+  title: Web3 Wallet API
+  version: "1.0"
+paths:
+  /auth/token:
+    post:
+      consumes:
+      - application/json
+      description: Exchanges client_id/client_secret for a short-lived JWT bearer
+        token.
+      parameters:
+      - description: Client credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.tokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_ameerhamza_web3-wallet-api_internal_auth.Token'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.errorResponse'
+      summary: Issue an access token (OAuth2 client credentials)
+      tags:
+      - auth
+  /healthz:
+    get:
+      description: Always returns 200 if the process is running.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.healthResponse'
+      summary: Liveness probe
+      tags:
+      - system
+  /readyz:
+    get:
+      description: Returns 200 when the service can serve traffic. RPC connectivity
+        is reported but not required (offline features remain available).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.healthResponse'
+      summary: Readiness probe
+      tags:
+      - system
+  /transactions:
+    post:
+      consumes:
+      - application/json
+      description: Builds, signs, and broadcasts an ETH transfer from a managed wallet.
+        Requires RPC connectivity.
+      parameters:
+      - description: Transfer parameters
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.sendRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/github_com_ameerhamza_web3-wallet-api_internal_transaction.Receipt'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.errorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_api_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Send a value transfer
+      tags:
+      - transactions
+  /wallets:
+    get:
+      description: Returns all accounts held by the service. Requires the admin role.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_ameerhamza_web3-wallet-api_internal_wallet.Wallet'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: List managed wallets
+      tags:
+      - wallets
+    post:
+      description: Generates a new Ethereum account; the private key is stored encrypted
+        (Web3 Secret Storage) and never returned.
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_ameerhamza_web3-wallet-api_internal_wallet.Wallet'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new wallet
+      tags:
+      - wallets
+  /wallets/{address}/balance:
+    get:
+      description: Reads the latest on-chain balance for any address. Requires RPC
+        connectivity.
+      parameters:
+      - description: Ethereum address (0x...)
+        in: path
+        name: address
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.balanceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_handlers.errorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_api_handlers.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get an address balance
+      tags:
+      - wallets
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

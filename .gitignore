@@ -1,0 +1,20 @@
+# Binaries
+/bin/
+/out/
+server
+
+# Local secrets and key material — NEVER commit these
+.env
+/data/
+*.key
+keystore/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
