@@ -61,13 +61,19 @@ type Service struct {
 }
 
 // NewService opens (or creates) a keystore rooted at dir.
+//
+// It uses StandardScryptN/P — the stronger (slower) scrypt parameters
+// recommended for at-rest key encryption. Tests use newService directly with
+// the cheaper "Light" parameters to stay fast.
 func NewService(dir, passphrase string, chainID int64) (*Service, error) {
+	return newService(dir, passphrase, chainID, keystore.StandardScryptN, keystore.StandardScryptP)
+}
+
+func newService(dir, passphrase string, chainID int64, scryptN, scryptP int) (*Service, error) {
 	if passphrase == "" {
 		return nil, errors.New("keystore passphrase must not be empty")
 	}
-	// StandardScryptN/P are the stronger (slower) scrypt parameters recommended
-	// for at-rest key encryption, as opposed to the "Light" variants.
-	ks := keystore.NewKeyStore(dir, keystore.StandardScryptN, keystore.StandardScryptP)
+	ks := keystore.NewKeyStore(dir, scryptN, scryptP)
 	return &Service{
 		ks:         ks,
 		passphrase: passphrase,

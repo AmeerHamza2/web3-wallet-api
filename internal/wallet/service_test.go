@@ -4,17 +4,20 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // newTestService builds a wallet service backed by a throwaway temp keystore.
 // Tests are fully offline and deterministic — no network, no fixed seed needed.
+// LightScryptN/P keep key derivation cheap so the suite stays fast; production
+// uses the standard (strong) parameters via NewService.
 func newTestService(t *testing.T) *Service {
 	t.Helper()
-	svc, err := NewService(t.TempDir(), "test-passphrase", 11155111)
+	svc, err := newService(t.TempDir(), "test-passphrase", 11155111, keystore.LightScryptN, keystore.LightScryptP)
 	if err != nil {
-		t.Fatalf("NewService: %v", err)
+		t.Fatalf("newService: %v", err)
 	}
 	return svc
 }
