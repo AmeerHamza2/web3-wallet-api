@@ -8,10 +8,10 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	_ "github.com/ameerhamza/web3-wallet-api/docs" // generated Swagger spec
-	"github.com/ameerhamza/web3-wallet-api/internal/api/handlers"
-	"github.com/ameerhamza/web3-wallet-api/internal/api/middleware"
-	"github.com/ameerhamza/web3-wallet-api/internal/auth"
+	_ "github.com/AmeerHamza2/web3-wallet-api/docs" // generated Swagger spec
+	"github.com/AmeerHamza2/web3-wallet-api/internal/api/handlers"
+	"github.com/AmeerHamza2/web3-wallet-api/internal/api/middleware"
+	"github.com/AmeerHamza2/web3-wallet-api/internal/auth"
 )
 
 // Options configures the router.

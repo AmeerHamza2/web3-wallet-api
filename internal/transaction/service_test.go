@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 
-	"github.com/ameerhamza/web3-wallet-api/internal/ethereum"
+	"github.com/AmeerHamza2/web3-wallet-api/internal/ethereum"
 )
 
 const sepoliaChainID = 11155111

@@ -13,10 +13,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
 
-	"github.com/ameerhamza/web3-wallet-api/internal/auth"
-	"github.com/ameerhamza/web3-wallet-api/internal/ethereum"
-	"github.com/ameerhamza/web3-wallet-api/internal/transaction"
-	"github.com/ameerhamza/web3-wallet-api/internal/wallet"
+	"github.com/AmeerHamza2/web3-wallet-api/internal/auth"
+	"github.com/AmeerHamza2/web3-wallet-api/internal/ethereum"
+	"github.com/AmeerHamza2/web3-wallet-api/internal/transaction"
+	"github.com/AmeerHamza2/web3-wallet-api/internal/wallet"
 )
 
 // Handler holds the dependencies shared by all route handlers.

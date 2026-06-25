@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gin-gonic/gin"
 
-	"github.com/ameerhamza/web3-wallet-api/internal/auth"
+	"github.com/AmeerHamza2/web3-wallet-api/internal/auth"
 )
 
 // Context keys.

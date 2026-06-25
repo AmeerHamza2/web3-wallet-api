@@ -11,9 +11,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
-	"github.com/ameerhamza/web3-wallet-api/internal/ethereum"
-	"github.com/ameerhamza/web3-wallet-api/internal/events"
-	"github.com/ameerhamza/web3-wallet-api/internal/wallet"
+	"github.com/AmeerHamza2/web3-wallet-api/internal/ethereum"
+	"github.com/AmeerHamza2/web3-wallet-api/internal/events"
+	"github.com/AmeerHamza2/web3-wallet-api/internal/wallet"
 )
 
 // Default gas limit for a plain ETH transfer (no contract execution).

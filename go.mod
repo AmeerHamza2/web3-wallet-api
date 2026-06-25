@@ -1,4 +1,4 @@
-module github.com/ameerhamza/web3-wallet-api
+module github.com/AmeerHamza2/web3-wallet-api
 
 go 1.26.4
 
