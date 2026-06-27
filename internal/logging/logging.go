@@ -1,6 +1,4 @@
-// Package logging provides a small wrapper around the standard library slog
-// package, configured for structured JSON output suitable for log aggregation
-// (ELK, Loki, CloudWatch) in a microservice environment.
+// Package logging configures a structured JSON slog logger.
 package logging
 
 import (

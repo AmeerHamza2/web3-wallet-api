@@ -1,15 +1,10 @@
-// Package auth implements stateless authentication (JWT bearer tokens) and
-// coarse-grained authorization (role-based access control).
-//
-// The token endpoint follows the OAuth 2.0 client-credentials grant shape
-// (client_id + client_secret → short-lived access token), which is the standard
-// machine-to-machine flow. Tokens are signed HS256 JWTs carrying a subject and
-// a role claim; the RBAC middleware (in the api package) gates routes on that
-// role. Swapping HS256 for RS256 + an OIDC provider is a configuration change,
-// not a redesign — the Verifier interface is the seam.
+// Package auth implements stateless JWT authentication and role-based access
+// control. The token endpoint follows the OAuth2 client-credentials grant and
+// issues HS256 JWTs carrying a subject and role claim.
 package auth
 
 import (
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"time"
@@ -68,14 +63,11 @@ type Token struct {
 }
 
 // IssueForClient validates client credentials and returns a signed token.
-//
-// For the reference client we grant the admin role; any additional registered
-// clients would map to their configured roles. Credentials are compared with a
-// constant-time-friendly check via the jwt library's downstream use; here we do
-// a direct comparison guarded by the fact that both sides are server-controlled
-// secrets of fixed value.
+// Credentials are compared in constant time to avoid leaking them via timing.
 func (i *Issuer) IssueForClient(clientID, clientSecret string) (*Token, error) {
-	if clientID != i.clientID || clientSecret != i.clientSecret {
+	idOK := subtle.ConstantTimeCompare([]byte(clientID), []byte(i.clientID)) == 1
+	secretOK := subtle.ConstantTimeCompare([]byte(clientSecret), []byte(i.clientSecret)) == 1
+	if !idOK || !secretOK {
 		return nil, ErrInvalidCredentials
 	}
 	return i.issue(clientID, RoleAdmin)

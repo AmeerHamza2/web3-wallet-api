@@ -94,8 +94,7 @@ func (s *Service) Send(ctx context.Context, req SendRequest) (*Receipt, error) {
 		return nil, fmt.Errorf("suggest gas price: %w", err)
 	}
 
-	// Legacy transaction type — broadly accepted on all EVM chains and the
-	// simplest to reason about for a reference implementation.
+	// Legacy transaction type: broadly accepted across EVM chains.
 	tx := types.NewTransaction(nonce, to, value, gasLimit, gasPrice, nil)
 
 	signed, err := s.signer.SignTx(req.From, tx)

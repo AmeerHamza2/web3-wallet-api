@@ -1,13 +1,6 @@
-// Package events defines the domain-event contract for the wallet service and a
-// default logging implementation.
-//
-// In production the Publisher would be backed by a message broker (Kafka, NATS
-// JetStream, RabbitMQ) so that downstream consumers — notification services,
-// indexers, analytics, an audit trail — react to wallet and transaction
-// lifecycle events asynchronously. Keeping a narrow interface here means the
-// broker is a deployment detail, not a code change: the service publishes
-// domain events and stays decoupled from transport. The LogPublisher below is
-// the local/test stand-in for that broker.
+// Package events defines the domain-event contract for the wallet service. In
+// production Publisher would be backed by a message broker (Kafka, NATS,
+// RabbitMQ); LogPublisher is the local/test implementation.
 package events
 
 import (
@@ -31,8 +24,7 @@ type Event struct {
 }
 
 // Publisher publishes domain events. Implementations must be safe for
-// concurrent use and should treat Publish as best-effort fire-and-forget from
-// the caller's perspective (errors are logged, not propagated to API clients).
+// concurrent use; Publish is best-effort fire-and-forget for callers.
 type Publisher interface {
 	Publish(ctx context.Context, e Event) error
 }

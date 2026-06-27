@@ -1,9 +1,6 @@
-// Package config loads runtime configuration from environment variables.
-//
-// Every value has a safe default so the service boots for a local demo with no
-// setup. Secrets (JWT signing key, keystore passphrase, OAuth client secret)
-// MUST be overridden in any real deployment — the defaults are clearly marked
-// and the service logs a warning when they are left in place.
+// Package config loads runtime configuration from the environment. Every value
+// has a default; secrets default to insecure placeholders that trigger a
+// startup warning (and block production) if left in place.
 package config
 
 import (
@@ -28,11 +25,11 @@ type Config struct {
 	KeystorePassphrase string
 
 	// Auth
-	JWTSecret          string
-	JWTIssuer          string
-	JWTExpiry          time.Duration
-	OAuthClientID      string
-	OAuthClientSecret  string
+	JWTSecret         string
+	JWTIssuer         string
+	JWTExpiry         time.Duration
+	OAuthClientID     string
+	OAuthClientSecret string
 
 	// Observability
 	LogLevel string // "debug" | "info" | "warn" | "error"
@@ -40,9 +37,9 @@ type Config struct {
 
 // Sentinel defaults that are insecure for production. Load() warns if they survive.
 const (
-	defaultJWTSecret         = "dev-insecure-jwt-secret-change-me"
+	defaultJWTSecret          = "dev-insecure-jwt-secret-change-me"
 	defaultKeystorePassphrase = "dev-insecure-passphrase-change-me"
-	defaultOAuthClientSecret = "dev-insecure-client-secret-change-me"
+	defaultOAuthClientSecret  = "dev-insecure-client-secret-change-me"
 )
 
 // Load reads configuration from the environment, applying defaults.

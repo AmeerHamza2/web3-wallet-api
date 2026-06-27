@@ -1,8 +1,6 @@
-// Package handlers implements the HTTP request handlers for the wallet API.
-//
-// Handlers are deliberately thin: they validate/parse input, delegate to the
-// domain services, and map domain errors to HTTP status codes. All business
-// logic lives in the service packages so it stays testable without HTTP.
+// Package handlers implements the wallet API's HTTP handlers. They parse input,
+// delegate to the domain services, and map domain errors to status codes;
+// business logic lives in the service packages.
 package handlers
 
 import (

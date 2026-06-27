@@ -1,12 +1,8 @@
-// Package ethereum wraps the go-ethereum JSON-RPC client with the narrow set of
-// operations this service needs (balance, nonce, gas price, broadcast).
-//
-// Connectivity is treated as optional at startup: if the RPC endpoint is
-// unreachable, the service still boots and offline capabilities (wallet
-// creation, transaction signing) keep working. Endpoints that genuinely need
-// the chain return 503 until connectivity is restored. This keeps the demo
-// runnable even on a flaky network and models how a resilient microservice
-// should degrade rather than crash-loop.
+// Package ethereum wraps the go-ethereum JSON-RPC client with the operations
+// this service needs (balance, nonce, gas price, broadcast). Connectivity is
+// optional at startup: the service boots without a reachable node and offline
+// features (wallet creation, signing) keep working; chain-dependent endpoints
+// return 503 until the node recovers.
 package ethereum
 
 import (
@@ -41,13 +37,9 @@ func NewClient(ctx context.Context, url string, chainID int64) *Client {
 	return c
 }
 
-// Reconnect attempts to (re)establish the RPC connection.
-//
-// go-ethereum's HTTP transport dials lazily — DialContext succeeds for any
-// well-formed URL without touching the network — so a successful dial is not
-// proof of connectivity. We therefore issue a cheap ChainID round-trip to
-// verify the node is actually reachable (and, as a bonus, that it speaks for
-// the chain we expect) before reporting the client as connected.
+// Reconnect (re)establishes the RPC connection. go-ethereum's HTTP transport
+// dials lazily, so a successful dial isn't proof of connectivity; we issue a
+// ChainID round-trip to confirm the node is reachable before marking connected.
 func (c *Client) Reconnect(ctx context.Context) error {
 	rpc, err := ethclient.DialContext(ctx, c.url)
 	if err != nil {

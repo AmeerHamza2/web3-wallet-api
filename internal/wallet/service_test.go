@@ -10,7 +10,7 @@ import (
 )
 
 // newTestService builds a wallet service backed by a throwaway temp keystore.
-// Tests are fully offline and deterministic — no network, no fixed seed needed.
+// Tests are fully offline and deterministic.
 // LightScryptN/P keep key derivation cheap so the suite stays fast; production
 // uses the standard (strong) parameters via NewService.
 func newTestService(t *testing.T) *Service {

@@ -24,13 +24,11 @@ const (
 )
 
 // RequestID assigns each request a correlation ID (honoring an inbound one) and
-// echoes it back. Correlation IDs are essential for tracing a request across
-// microservices.
+// echoes it back.
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.GetHeader(headerReqID)
 		if id == "" {
-			// 16 random bytes, hex-encoded — no extra dependency required.
 			var b [16]byte
 			if _, err := rand.Read(b[:]); err == nil {
 				id = hexutil.Encode(b[:])[2:]

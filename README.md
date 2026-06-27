@@ -1,174 +1,128 @@
 # Web3 Wallet API
 
-A secure, microservice-style **Ethereum wallet API written in Go**. It creates
-wallets, signs and broadcasts transactions, and checks balances on the **Sepolia
-testnet**, with private keys stored encrypted at rest, JWT/OAuth2 authentication,
-role-based access control, OpenAPI/Swagger docs, structured logging, a
-domain-event stream, and a hardened container image.
+An Ethereum wallet API in Go. It creates wallets, signs and broadcasts
+transactions, and reads balances on the Sepolia testnet, with private keys
+encrypted at rest, OAuth2/JWT auth, role-based access control, OpenAPI/Swagger
+docs, structured logging, a domain-event publisher, and a distroless container
+image.
 
-> Built as a focused reference service: small enough to read end-to-end, but
-> production-shaped in the parts that matter — key custody, auth, resilience,
-> and observability.
-
----
-
-## Features
+## Endpoints
 
 | Capability | Endpoint | Notes |
 |---|---|---|
 | Issue access token | `POST /api/v1/auth/token` | OAuth2 client-credentials → JWT |
 | Create wallet | `POST /api/v1/wallets` | Key generated + encrypted; never returned |
-| List wallets | `GET /api/v1/wallets` | **Admin only** (RBAC) |
-| Check balance | `GET /api/v1/wallets/{address}/balance` | Live on-chain read |
+| List wallets | `GET /api/v1/wallets` | Admin only (RBAC) |
+| Check balance | `GET /api/v1/wallets/{address}/balance` | On-chain read |
 | Send transaction | `POST /api/v1/transactions` | Build → sign → broadcast → emit event |
 | Liveness / readiness | `GET /healthz`, `GET /readyz` | K8s-style probes |
-| API docs | `GET /swagger/index.html` | Generated from code annotations |
+| API docs | `GET /swagger/index.html` | Generated from annotations |
 
-## Architecture
+## Layout
 
 ```
-cmd/server            process entrypoint, config wiring, graceful shutdown
+cmd/server            entrypoint, config wiring, graceful shutdown
 internal/
-  config              env-driven configuration with safe defaults
+  config              env-driven configuration
   logging             structured JSON logging (slog)
-  auth                JWT issue/verify, OAuth2 client-credentials, RBAC roles
-  wallet              keystore-backed key custody + transaction signing
+  auth                JWT issue/verify, OAuth2 client-credentials, RBAC
+  wallet              keystore-backed key custody + signing
   ethereum            go-ethereum RPC client (balance, nonce, gas, broadcast)
   transaction         build → sign → broadcast → publish pipeline
-  events              domain-event contract + broker-ready publisher
-  api                 gin router, handlers, middleware (auth, RBAC, logging, recovery)
+  events              domain-event contract + publisher
+  api                 gin router, handlers, middleware
 docs                  generated OpenAPI/Swagger spec
 ```
 
-The layering is deliberate: **handlers are thin** (parse, delegate, map errors to
-HTTP codes) and **all business logic lives in service packages** with no
-dependency on gin or net/http, so it's unit-testable without spinning up a
-server. Interfaces (`wallet.Signer`, `events.Publisher`) mark the seams where
-production backends (HSM/KMS, Kafka/NATS) plug in without touching call sites.
+Handlers parse input, delegate, and map errors to status codes; business logic
+lives in the service packages with no dependency on gin or net/http, so it's
+testable without a server. The `wallet.Signer` and `events.Publisher` interfaces
+are where an HSM/KMS or a real broker (Kafka/NATS) replace the defaults.
 
-## Security design
+## Security
 
-Security is the headline of this service, not an afterthought.
-
-- **Private keys encrypted at rest.** Keys are persisted via go-ethereum's
-  keystore, which implements the **Web3 Secret Storage Definition**: each key is
-  encrypted with AES-128-CTR under a **scrypt**-derived key (N=2¹⁸) and protected
-  by a Keccak-256 MAC. This is the same on-disk format geth uses. Plaintext key
-  material is decrypted only transiently, inside the keystore, for a single
-  signing operation, then re-locked. **The private key is never returned over the
-  API.** See [`internal/wallet/service.go`](internal/wallet/service.go).
-- **Replay protection.** Transactions are signed with the **EIP-155** signer
-  bound to the configured chain ID, so a Sepolia signature can't be replayed on
-  mainnet.
-- **Stateless auth + RBAC.** OAuth2 client-credentials grant issues short-lived
-  **HS256 JWTs** carrying a role claim; middleware gates routes by role. The
-  verifier **pins the signing algorithm** to defend against the `alg=none` /
-  algorithm-confusion attack (regression-tested).
-- **No secrets in the image.** All secrets come from the environment; the service
-  **refuses to start in production** if default secrets are detected, and warns
-  loudly in development.
-- **Minimal attack surface.** The runtime image is **distroless, non-root,
-  static** — no shell, no package manager.
-- **Defense in depth at the edge:** request-ID correlation, panic recovery that
-  never leaks internals, `ReadHeaderTimeout` against slowloris, and input
-  validation (address checksums, base-10 wei amounts to avoid float drift).
-
-> **Production note:** this reference uses one service-level passphrase for the
-> keystore. In production each tenant's key-encryption secret would come from a
-> managed store (AWS KMS, HashiCorp Vault) or an HSM — the `wallet.Signer`
-> interface is exactly that swap point.
+- **Keys encrypted at rest.** go-ethereum's keystore (Web3 Secret Storage:
+  scrypt-derived AES-128-CTR with a Keccak-256 MAC). Keys are decrypted only
+  transiently for a single signing operation and are never returned over the API.
+- **Replay protection.** Transactions use the EIP-155 signer bound to the
+  configured chain ID, so a Sepolia signature can't be replayed on mainnet.
+- **Auth + RBAC.** OAuth2 client-credentials issues short-lived HS256 JWTs with a
+  role claim; the verifier pins the algorithm to reject `alg=none` (tested).
+  Client credentials are compared in constant time.
+- **No default secrets in production.** The service refuses to start in
+  production if default secrets are detected, and warns in development.
+- **Hardened image.** Distroless, non-root, static — no shell or package manager.
+- **Edge hardening.** Request-ID correlation, panic recovery, slowloris
+  `ReadHeaderTimeout`, address-checksum and base-10 wei validation.
 
 ## Resilience
 
-The RPC node is treated as an **optional dependency**. If it's unreachable at
-startup the service still boots; offline capabilities (wallet creation,
-signing) keep working, and chain-dependent endpoints return `503` until
-connectivity returns. Because go-ethereum's HTTP transport dials lazily, the
-client verifies reachability with a real `eth_chainId` round-trip rather than
-trusting a successful dial. Shutdown is graceful on `SIGINT`/`SIGTERM`.
-
-## Event-driven design
-
-Wallet and transaction lifecycle events (`wallet.created`,
-`transaction.submitted`, `transaction.failed`) are published through a narrow
-`events.Publisher` interface. The default `LogPublisher` is a local stand-in for
-a message broker (Kafka / NATS / RabbitMQ); swapping in a real broker is a
-deployment concern, not a code change — downstream consumers (notifications,
-indexing, audit) stay decoupled.
+The RPC node is an optional dependency: if it's unreachable at startup the
+service still boots, offline features (wallet creation, signing) keep working,
+and chain-dependent endpoints return `503` until it recovers. Because
+go-ethereum dials lazily, the client confirms reachability with an `eth_chainId`
+round-trip rather than trusting a successful dial. Shutdown is graceful on
+`SIGINT`/`SIGTERM`.
 
 ## Quick start
-
-### Run locally (no signup required)
 
 ```bash
 make run            # or: go run ./cmd/server
 ```
 
-Then open **http://localhost:8080/swagger/index.html**.
-
-### End-to-end with curl
+Then open http://localhost:8080/swagger/index.html.
 
 ```bash
-# 1. Get a token (OAuth2 client-credentials)
+# Get a token
 TOKEN=$(curl -s -X POST localhost:8080/api/v1/auth/token \
   -H 'Content-Type: application/json' \
   -d '{"client_id":"demo-client","client_secret":"dev-insecure-client-secret-change-me"}' \
   | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
 
-# 2. Create a wallet
+# Create a wallet
 curl -s -X POST localhost:8080/api/v1/wallets -H "Authorization: Bearer $TOKEN"
 
-# 3. Check a balance (needs RPC connectivity)
+# Check a balance (needs RPC connectivity)
 curl -s localhost:8080/api/v1/wallets/0x71C7656EC7ab88b098defB751B7401B5f6d8976F/balance \
   -H "Authorization: Bearer $TOKEN"
 
-# 4. Send a transfer (fund the sender with Sepolia faucet ETH first)
+# Send a transfer (fund the sender from a Sepolia faucet first)
 curl -s -X POST localhost:8080/api/v1/transactions \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"from":"0x...","to":"0x...","value_wei":"1000000000000000"}'
 ```
 
-### Run with Docker
-
-```bash
-make docker-up      # docker compose up --build
-```
+With Docker: `make docker-up`.
 
 ## Development
 
 ```bash
-make test           # run the test suite (race detector on)
-make vet            # static analysis
+make test           # race detector on
+make vet
 make swag           # regenerate Swagger docs after changing annotations
-make build          # static, stripped binary into ./bin
-make help           # list all targets
+make build          # static binary into ./bin
 ```
 
-Tests are **offline and deterministic** — no network, no live RPC. They cover
-keystore round-trips, signature recovery (proving signed transactions verify to
-the signing address), JWT issue/verify including the `alg=none` defense, and
-transaction validation + graceful-degradation paths.
+Tests are offline and deterministic. They cover keystore round-trips, signature
+recovery (signed transactions verify back to the signing address), JWT
+issue/verify including the `alg=none` defense, and transaction validation and
+degradation paths.
 
 ## Configuration
 
-All configuration is environment-driven; see [`.env.example`](.env.example) for
-the full list. Key variables: `ETH_RPC_URL`, `CHAIN_ID`, `KEYSTORE_PASSPHRASE`,
-`JWT_SECRET`, `OAUTH_CLIENT_ID`/`OAUTH_CLIENT_SECRET`, `PORT`, `LOG_LEVEL`.
+Environment-driven; see [.env.example](.env.example). Key variables:
+`ETH_RPC_URL`, `CHAIN_ID`, `KEYSTORE_PASSPHRASE`, `JWT_SECRET`,
+`OAUTH_CLIENT_ID`/`OAUTH_CLIENT_SECRET`, `PORT`, `LOG_LEVEL`.
 
-## Tech stack
+## Stack
 
-Go 1.26 · [go-ethereum](https://github.com/ethereum/go-ethereum) ·
-[gin](https://github.com/gin-gonic/gin) ·
-[golang-jwt](https://github.com/golang-jwt/jwt) ·
-[swaggo](https://github.com/swaggo/swag) · Docker (distroless)
+Go 1.26 · go-ethereum · gin · golang-jwt · swaggo · Docker (distroless)
 
-## Roadmap / production hardening
+## Roadmap
 
-These are intentionally out of scope for the reference but are the natural next
-steps: KMS/Vault-backed key custody, per-tenant key isolation, a real message
-broker behind `events.Publisher`, transaction receipt polling + confirmation
-tracking, rate limiting and an API gateway, EIP-1559 dynamic-fee transactions,
-and OpenTelemetry tracing.
+KMS/Vault key custody, per-tenant key isolation, a real broker behind
+`events.Publisher`, receipt polling + confirmation tracking, rate limiting and
+an API gateway, EIP-1559 dynamic-fee transactions, OpenTelemetry tracing.
 
 ## License
 
