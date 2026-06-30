@@ -36,13 +36,14 @@ type SendRequest struct {
 
 // Receipt is the result of a successful broadcast.
 type Receipt struct {
-	TxHash   string `json:"tx_hash"`
-	From     string `json:"from"`
-	To       string `json:"to"`
-	ValueWei string `json:"value_wei"`
-	Nonce    uint64 `json:"nonce"`
-	GasPrice string `json:"gas_price_wei"`
-	GasLimit uint64 `json:"gas_limit"`
+	TxHash    string `json:"tx_hash"`
+	From      string `json:"from"`
+	To        string `json:"to"`
+	ValueWei  string `json:"value_wei"`
+	Nonce     uint64 `json:"nonce"`
+	GasTipCap string `json:"gas_tip_cap_wei"` // EIP-1559 priority fee
+	GasFeeCap string `json:"gas_fee_cap_wei"` // EIP-1559 max fee
+	GasLimit  uint64 `json:"gas_limit"`
 }
 
 // Service orchestrates the build → sign → broadcast → publish pipeline.
@@ -50,16 +51,23 @@ type Service struct {
 	eth     *ethereum.Client
 	signer  wallet.Signer
 	events  events.Publisher
+	nonces  *NonceManager
 	chainID *big.Int
 }
 
 // NewService wires the transaction service.
 func NewService(eth *ethereum.Client, signer wallet.Signer, pub events.Publisher, chainID int64) *Service {
-	return &Service{eth: eth, signer: signer, events: pub, chainID: big.NewInt(chainID)}
+	return &Service{
+		eth:     eth,
+		signer:  signer,
+		events:  pub,
+		nonces:  NewNonceManager(eth),
+		chainID: big.NewInt(chainID),
+	}
 }
 
-// Send validates, builds, signs, and broadcasts a value transfer. Network
-// interaction (nonce, gas price, broadcast) requires RPC connectivity; if the
+// Send validates, builds, signs, and broadcasts an EIP-1559 value transfer.
+// Network interaction (nonce, fees, broadcast) requires RPC connectivity; if the
 // node is unreachable the call returns ethereum.ErrNotConnected.
 func (s *Service) Send(ctx context.Context, req SendRequest) (*Receipt, error) {
 	if !common.IsHexAddress(req.To) {
@@ -85,20 +93,40 @@ func (s *Service) Send(ctx context.Context, req SendRequest) (*Receipt, error) {
 	from := common.HexToAddress(req.From)
 	to := common.HexToAddress(req.To)
 
-	nonce, err := s.eth.PendingNonceAt(ctx, from)
+	// Reserve a nonce from the per-sender manager so concurrent sends from the
+	// same account don't collide. Any later failure resets it to avoid a gap.
+	nonce, err := s.nonces.Reserve(ctx, from)
 	if err != nil {
-		return nil, fmt.Errorf("fetch nonce: %w", err)
-	}
-	gasPrice, err := s.eth.SuggestGasPrice(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("suggest gas price: %w", err)
+		return nil, fmt.Errorf("reserve nonce: %w", err)
 	}
 
-	// Legacy transaction type: broadly accepted across EVM chains.
-	tx := types.NewTransaction(nonce, to, value, gasLimit, gasPrice, nil)
+	tip, err := s.eth.SuggestGasTipCap(ctx)
+	if err != nil {
+		s.nonces.Reset(from)
+		return nil, fmt.Errorf("suggest gas tip: %w", err)
+	}
+	baseFee, err := s.eth.BaseFee(ctx)
+	if err != nil {
+		s.nonces.Reset(from)
+		return nil, fmt.Errorf("base fee: %w", err)
+	}
+	// maxFeePerGas = 2*baseFee + tip: headroom for base-fee growth over a few
+	// blocks while the tip stays the validator incentive.
+	gasFeeCap := new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(2)), tip)
+
+	tx := types.NewTx(&types.DynamicFeeTx{
+		ChainID:   s.chainID,
+		Nonce:     nonce,
+		GasTipCap: tip,
+		GasFeeCap: gasFeeCap,
+		Gas:       gasLimit,
+		To:        &to,
+		Value:     value,
+	})
 
 	signed, err := s.signer.SignTx(req.From, tx)
 	if err != nil {
+		s.nonces.Reset(from)
 		s.publish(ctx, events.TypeTxFailed, map[string]any{
 			"from": req.From, "to": req.To, "error": err.Error(),
 		})
@@ -106,6 +134,7 @@ func (s *Service) Send(ctx context.Context, req SendRequest) (*Receipt, error) {
 	}
 
 	if err := s.eth.SendTransaction(ctx, signed); err != nil {
+		s.nonces.Reset(from)
 		s.publish(ctx, events.TypeTxFailed, map[string]any{
 			"from": req.From, "to": req.To, "tx_hash": signed.Hash().Hex(), "error": err.Error(),
 		})
@@ -113,13 +142,14 @@ func (s *Service) Send(ctx context.Context, req SendRequest) (*Receipt, error) {
 	}
 
 	receipt := &Receipt{
-		TxHash:   signed.Hash().Hex(),
-		From:     req.From,
-		To:       req.To,
-		ValueWei: value.String(),
-		Nonce:    nonce,
-		GasPrice: gasPrice.String(),
-		GasLimit: gasLimit,
+		TxHash:    signed.Hash().Hex(),
+		From:      req.From,
+		To:        req.To,
+		ValueWei:  value.String(),
+		Nonce:     nonce,
+		GasTipCap: tip.String(),
+		GasFeeCap: gasFeeCap.String(),
+		GasLimit:  gasLimit,
 	}
 
 	s.publish(ctx, events.TypeTxSubmitted, map[string]any{

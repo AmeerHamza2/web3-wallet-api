@@ -43,7 +43,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_ameerhamza_web3-wallet-api_internal_auth.Token"
+                            "$ref": "#/definitions/github_com_AmeerHamza2_web3-wallet-api_internal_auth.Token"
                         }
                     },
                     "400": {
@@ -134,7 +134,7 @@ const docTemplate = `{
                     "202": {
                         "description": "Accepted",
                         "schema": {
-                            "$ref": "#/definitions/github_com_ameerhamza_web3-wallet-api_internal_transaction.Receipt"
+                            "$ref": "#/definitions/github_com_AmeerHamza2_web3-wallet-api_internal_transaction.Receipt"
                         }
                     },
                     "400": {
@@ -179,7 +179,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_ameerhamza_web3-wallet-api_internal_wallet.Wallet"
+                                "$ref": "#/definitions/github_com_AmeerHamza2_web3-wallet-api_internal_wallet.Wallet"
                             }
                         }
                     },
@@ -215,7 +215,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_ameerhamza_web3-wallet-api_internal_wallet.Wallet"
+                            "$ref": "#/definitions/github_com_AmeerHamza2_web3-wallet-api_internal_wallet.Wallet"
                         }
                     },
                     "401": {
@@ -287,7 +287,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_ameerhamza_web3-wallet-api_internal_auth.Token": {
+        "github_com_AmeerHamza2_web3-wallet-api_internal_auth.Token": {
             "type": "object",
             "properties": {
                 "access_token": {
@@ -304,16 +304,21 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_ameerhamza_web3-wallet-api_internal_transaction.Receipt": {
+        "github_com_AmeerHamza2_web3-wallet-api_internal_transaction.Receipt": {
             "type": "object",
             "properties": {
                 "from": {
                     "type": "string"
                 },
+                "gas_fee_cap_wei": {
+                    "description": "EIP-1559 max fee",
+                    "type": "string"
+                },
                 "gas_limit": {
                     "type": "integer"
                 },
-                "gas_price_wei": {
+                "gas_tip_cap_wei": {
+                    "description": "EIP-1559 priority fee",
                     "type": "string"
                 },
                 "nonce": {
@@ -330,7 +335,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_ameerhamza_web3-wallet-api_internal_wallet.Wallet": {
+        "github_com_AmeerHamza2_web3-wallet-api_internal_wallet.Wallet": {
             "type": "object",
             "properties": {
                 "address": {

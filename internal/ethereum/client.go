@@ -96,13 +96,30 @@ func (c *Client) PendingNonceAt(ctx context.Context, address common.Address) (ui
 	return rpc.PendingNonceAt(ctx, address)
 }
 
-// SuggestGasPrice returns a gas price estimate from the node.
-func (c *Client) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
+// SuggestGasTipCap returns a suggested EIP-1559 priority fee (tip) per gas.
+func (c *Client) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
 	rpc, err := c.conn()
 	if err != nil {
 		return nil, err
 	}
-	return rpc.SuggestGasPrice(ctx)
+	return rpc.SuggestGasTipCap(ctx)
+}
+
+// BaseFee returns the base fee of the latest block, used to size an EIP-1559
+// fee cap. It errors if the chain predates EIP-1559 (no base fee).
+func (c *Client) BaseFee(ctx context.Context) (*big.Int, error) {
+	rpc, err := c.conn()
+	if err != nil {
+		return nil, err
+	}
+	header, err := rpc.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	if header.BaseFee == nil {
+		return nil, errors.New("chain does not support EIP-1559 (no base fee)")
+	}
+	return header.BaseFee, nil
 }
 
 // SendTransaction broadcasts a signed transaction to the network.

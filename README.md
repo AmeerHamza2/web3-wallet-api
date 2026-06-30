@@ -55,6 +55,16 @@ are where an HSM/KMS or a real broker (Kafka/NATS) replace the defaults.
 - **Edge hardening.** Request-ID correlation, panic recovery, slowloris
   `ReadHeaderTimeout`, address-checksum and base-10 wei validation.
 
+## Transactions
+
+- **EIP-1559 dynamic fees.** Transfers are typed `DynamicFeeTx`: the priority
+  fee comes from `eth_maxPriorityFeePerGas` and the fee cap is sized at
+  `2·baseFee + tip` to absorb base-fee growth over a few blocks.
+- **Concurrent-safe nonces.** A per-sender nonce manager seeds from the chain's
+  pending nonce and allocates locally, so several sends from one account don't
+  collide on a nonce. A failed send resets the sender so the next allocation
+  re-syncs with the chain instead of leaving a gap.
+
 ## Resilience
 
 The RPC node is an optional dependency: if it's unreachable at startup the
